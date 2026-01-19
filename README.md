@@ -90,3 +90,7 @@ This project demonstrates:
 - Comfort working with ambiguity and constraints
 
 This is not a demo app—it’s a real solution to a real problem.
+
+
+<img width="1440" height="900" alt="Screenshot 2026-01-18 at 11 45 02 PM" src="https://github.com/user-attachments/assets/fb7f7f1f-0dbc-405e-a920-498ad0501925" />
+
