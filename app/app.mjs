@@ -7,6 +7,7 @@ import {
   inMonth,
   settlementPlan,
 } from "./calc.mjs";
+import { mergeReceipts, parseReceiptText } from "./receipt.mjs";
 
 const STORAGE_KEY = "roomiespend-v1";
 const root = document.querySelector("#app");
@@ -253,7 +254,10 @@ function dashboard() {
   return h("section", {}, [
     h("div", { class: "page-head" }, [
       h("div", {}, [h("h1", {}, ["Dashboard"]), h("div", { class: "sub" }, [monthLabel()])]),
-      h("button", { class: "ghost", onclick: restoreSample }, ["Restore sample"]),
+      h("div", { class: "actions" }, [
+        h("a", { class: "primary", href: "#/log" }, ["Scan receipt"]),
+        h("button", { class: "ghost", onclick: restoreSample }, ["Restore sample"]),
+      ]),
     ]),
     h("div", { class: "grid" }, [
       h("div", { class: "stack" }, [
@@ -415,6 +419,119 @@ function updatePreview() {
   document.querySelector(".preview")?.replaceWith(previewCard());
 }
 
+let scanStatus = "";
+let scanError = "";
+let scanning = false;
+let workerPromise = null;
+
+function getWorker() {
+  if (!workerPromise) {
+    workerPromise = (async () => {
+      const tesseract = await import("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js");
+      const createWorker = tesseract.default.createWorker;
+      const cores = [
+        "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm.js",
+        "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-lstm.wasm.js",
+      ];
+      let lastError;
+      for (const corePath of cores) {
+        try {
+          return await createWorker("eng", 1, {
+            workerPath: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
+            corePath,
+            langPath: "https://tessdata.projectnaptha.com/4.0.0",
+          });
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      workerPromise = null;
+      throw lastError;
+    })();
+  }
+  return workerPromise;
+}
+
+function applyReceipt(parsed) {
+  if (!draft) freshDraft();
+  if (!draft.description.trim()) draft.description = parsed.store || "Receipt";
+  draft.tax = (parsed.taxCents / 100).toFixed(2);
+  draft.items = parsed.items.map((item) => ({
+    id: crypto.randomUUID(),
+    name: item.name,
+    category: item.category,
+    price: (item.priceCents / 100).toFixed(2),
+    assignee: "shared",
+  }));
+  formError = "";
+}
+
+async function onReceiptFiles(event) {
+  const files = [...(event.target.files || [])];
+  event.target.value = "";
+  if (!files.length || scanning) return;
+  scanning = true;
+  scanError = "";
+  const parts = [];
+  try {
+    const worker = await getWorker();
+    for (let index = 0; index < files.length; index += 1) {
+      scanStatus = `Reading photo ${index + 1} of ${files.length}…`;
+      render();
+      const result = await worker.recognize(files[index]);
+      parts.push(parseReceiptText(result.data?.text || ""));
+    }
+  } catch (error) {
+    console.error(error);
+    scanError = "Couldn't read that photo. Try a brighter, straighter picture.";
+    scanStatus = "";
+    scanning = false;
+    render();
+    return;
+  }
+  const parsed = mergeReceipts(parts);
+  scanning = false;
+  if (!parsed.items.length) {
+    scanError = "No line items found. Try a closer photo of the item list.";
+    scanStatus = "";
+    render();
+    return;
+  }
+  applyReceipt(parsed);
+  scanStatus = `Found ${parsed.items.length} item${parsed.items.length === 1 ? "" : "s"}. Check them, then save.`;
+  scanError = "";
+  render();
+}
+
+function scanCard() {
+  const photos = h("input", {
+    type: "file",
+    accept: "image/*",
+    multiple: true,
+    hidden: true,
+    onchange: onReceiptFiles,
+  });
+  const camera = h("input", {
+    type: "file",
+    accept: "image/*",
+    capture: "environment",
+    hidden: true,
+    onchange: onReceiptFiles,
+  });
+  return h("section", { class: "card scan" }, [
+    h("h2", {}, ["Scan a receipt"]),
+    h("p", { class: "note" }, ["Click a photo or add screenshots of a long receipt. Line items and tax are filled in for you to review."]),
+    scanStatus ? h("p", { class: "status", role: "status" }, [scanStatus]) : null,
+    scanError ? h("div", { class: "alert", role: "alert" }, [scanError]) : null,
+    h("div", { class: "actions" }, [
+      h("button", { type: "button", class: "primary", disabled: scanning, onclick: () => photos.click() }, ["Scan receipt photo"]),
+      h("button", { type: "button", class: "ghost", disabled: scanning, onclick: () => camera.click() }, ["Take photo"]),
+    ]),
+    photos,
+    camera,
+  ]);
+}
+
 function logForm() {
   if (!draft) freshDraft();
   const home = household();
@@ -424,8 +541,9 @@ function logForm() {
   ];
   return h("section", {}, [
     h("div", { class: "page-head" }, [
-      h("div", {}, [h("h1", {}, ["Log expense"]), h("div", { class: "sub" }, ["Add items, then mark each one shared or personal."])]),
+      h("div", {}, [h("h1", {}, ["Log expense"]), h("div", { class: "sub" }, ["Scan a receipt photo, or add items yourself."])]),
     ]),
+    scanCard(),
     h("div", { class: "grid" }, [
       h("form", { class: "card form", onsubmit: saveDraft }, [
         formError ? h("div", { class: "alert", role: "alert" }, [formError]) : null,

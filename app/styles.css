@@ -148,6 +148,9 @@ td { padding: 6px 8px 6px 0; vertical-align: center; }
 td input, td select { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .alert { background: var(--red-soft); color: var(--red); border-radius: 12px; padding: 10px 12px; }
+.scan { margin-bottom: 16px; }
+.scan h2 { margin-bottom: 6px; }
+.status { margin: 0; font-weight: 700; color: var(--green); }
 .preview { display: grid; gap: 8px; }
 .split-line { display: flex; justify-content: space-between; }
 .empty { color: var(--muted); padding: 12px 0; }
