@@ -74,6 +74,12 @@ See `/SCREENSHOTS` folder for UI walkthroughs.
 
 ---
 
+## Try the dashboard
+
+Open [app/index.html](app/index.html). With the preview server running, go to `/app/`.
+
+The household starts with Jo, RS, Pooj, Sai, and Jen. Scan a receipt photo to pull out line items, or log an expense, set a budget, and record a settlement. The original hosted preview is no longer available, so this copy runs in the browser.
+
 ## 🚀 Status
 
 **MVP shipped and tested with real roommates.**  
